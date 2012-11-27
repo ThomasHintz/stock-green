@@ -121,10 +121,53 @@
     (print (stock-value stock))))
 
 (define (make-test-stock)
-  (make-stock name: "test" price: 1000.432432 projected: 0.05123 last: -0.012
-              avg: '((samples . 0) (value . 0)) recent-avg: 0.034 volatility: 0.1 value: 30))
+  (make-stock name: "test" price: 10 projected: 0 last: 0
+              avg: '((samples . 0) (value . 0)) recent-avg: 0 volatility: 0.1 value: 30))
+
+;;;;;;;;;;;;;; players ;;;;;;;;;;;;;;;;;
+(define (make-player #!key (name "") (cash 0) (stocks '()))
+  `((name . ,name) (cash . ,cash) (stocks . ,stocks)))
+
+(mapm accessor
+      '((player-name 'name)
+        (player-cash 'cash)
+        (player-stocks 'stocks)))
+
+(define (player-stock-shares player stock-name . val)
+  (alist-ref stock-name (player-stocks player) string=?))
+
+(define (make-test-player)
+  (make-player name: "food good" cash: 10000
+               stocks: '(("Google" . 100))))
+
+(define (display-player-stock player stock-name stocks)
+  (let ((padding 26))
+    (fox stock-name (- padding 1) #t "\n")
+    (fox "value: " padding #t)
+    (fox (->$ (* (player-stock-shares player stock-name) (stock-price (alist-ref stock-name stocks string=?)))) 0 #t '(2) "\n")
+    (fox "shares: " padding #t)
+    (fox (player-stock-shares player stock-name) 0 #t "\n")))
+
+(define (display-player-stocks player stocks)
+  (display-player-stock player "Google" stocks))
+
+(define (display-player player stocks)
+  (let ((padding 18))
+    (print "")
+    (fox (player-name player) (+ padding (string-length (player-name player))) #t "\n")
+    (fox "cash: " padding #t)
+    (fox (->$ (player-cash player)) 0 #t '(2) "\n")
+    (fox "stocks: " padding #t)
+    (print "")
+    (display-player-stocks player stocks)))
+(display-player (make-test-player) `(("Google" . ,(make-test-stock))))
 
 ;;;;;;;;;;;;; game play ;;;;;;;;;;;;;;;;
+(define (generate-stock-new-value stock)
+  (generate-value stock
+                  (* (random-percent) (random-pos-or-neg))
+                  (volatile-change (stock-value stock) (stock-volatility stock))))
+
 (define (update-stock stock new-value)
   (let ((stock (list-copy stock)))
     (set! stock (stock-avg-value stock (stock-cumulative-avg stock new-value)))
@@ -135,15 +178,13 @@
 ;; (stock-avg (make-test-stock))
 (let ((stock (make-test-stock)))
   (set! stock (update-stock stock 30))
-  (set! stock (update-stock stock (generate-value stock
-                                                  (* (random-percent) (random-pos-or-neg))
-                                                  (volatile-change (stock-value stock) (stock-volatility stock)))))
+  (set! stock (update-stock stock (generate-stock-new-value stock)))
   (display-stock stock))
 
-;; (define google
-;;   (make-stock name: "Google" price: 100 volatility: 0.01 value: 100))
-;; (set! google
-;; (stock-value google (generate-value google
-;;                                     (* (random-percent) (random-pos-or-neg))
-;;                                     (volatile-change (stock-value google) (stock-volatility google)))))
-;; (display-stock google)
+(define google (make-test-stock))
+(set! google (stock-name google "Google"))
+(set! google (update-stock google 30))
+(begin (set! google (update-stock google (generate-stock-new-value google)))
+       (display-stock google))
+
+
