@@ -1,17 +1,31 @@
 (import chicken scheme data-structures)
-(use numbers fox)
+(use numbers fox srfi-1)
 
 ;;;;;;;;;;;;;;;; generic ;;;;;;;;;;;;;;
 (define (store? test)
+  (assert (list? test))
   (not (null? test)))
+
+(define-syntax mapm
+  (syntax-rules ()
+    ((_ mac ls)
+     (let ((mac-list (map (lambda (lst) (cons 'mac lst)) ls)))
+       (eval
+        `(begin
+           ,@mac-list)
+        (interaction-environment))))))
 
 (define-syntax accessor
   (syntax-rules ()
     ((_ name key)
-     (define (name stock . val)
+     (define (name alist . val)
+       (assert (list? alist))
        (if (store? val)
-           (alist-update key (car val) stock)
-           (alist-ref key stock))))))
+           (alist-update key (car val) alist)
+           (alist-ref key alist))))))
+
+(define (combine-percents l)
+  (fold + 0 (map (lambda (e) (* (car e) (cadr e))) l)))
 
 ;;;;;;;;;;;;;;;; equations ;;;;;;;;;;;;;
 (define (random-percent)
@@ -20,15 +34,26 @@
 (define (random-pos-or-neg)
   (expt -1 (random 100)))
 
-(define (change-pct rnd pos-or-neg skew)
-  (let ((rnd-with-sign (* rnd pos-or-neg)))
-    (+ rnd-with-sign (* (- 1 (abs rnd-with-sign)) skew))))
+(define (projected-value stock)
+  (+ (stock-value stock)
+     (* (combine-percents
+         `((,(stock-avg stock) 0.7)
+           (,(stock-recent-avg stock) 0.3)))
+        (stock-value stock))))
 
-(define (next-value current-value max-change skew)
-  (+ current-value (* current-value (change-pct (random-percent) (random-pos-or-neg) skew))))
+(define (volatile-change stock-value volatility)
+  (if (< (random-percent) volatility)
+      (* stock-value (* (random-percent) (random-pos-or-neg)))
+      0))
 
-(next-value 100 1 -1)
-(change-pct 1 1 -1)
+(define (generate-value stock random-change volatility-change)
+  (+ (stock-value stock)
+     (* (combine-percents
+         `((,(stock-avg stock) 0.6)
+           (,(stock-recent-avg stock) 0.3)
+           (,random-change 0.1)))
+        (stock-value stock))
+     volatility-change))
 
 ;;;;;;;;;;;;;; utilities ;;;;;;;;;;;;;;
 (define (->pct num) (* 100 num))
@@ -39,20 +64,23 @@
                  (fox num '(2) '#("," 3))))
 
 ;;;;;;;;;;;;;;; stocks ;;;;;;;;;;;;;;;;
-
 (define (make-stock #!key (name "") (price 0) (projected 0) (last 0)
-                    (avg 0) (recent-avg 0) (volatility 'none))
+                    (avg 0) (recent-avg 0) (volatility 'none)
+                    (value 0))
   `((name . ,name) (price . ,price) (projected . ,projected)
     (last . ,last) (avg . ,avg)
-    (recent-avg . ,recent-avg) (volatility . ,volatility)))
+    (recent-avg . ,recent-avg) (volatility . ,volatility)
+    (value . ,value)))
 
-(accessor stock-name 'name)
-(accessor stock-price 'price)
-(accessor stock-projected 'projected)
-(accessor stock-last 'last)
-(accessor stock-avg 'avg)
-(accessor stock-recent-avg 'recent-avg)
-(accessor stock-volatility 'volatility)
+(mapm accessor
+      '((stock-name 'name)
+        (stock-price 'price)
+        (stock-projected 'projected)
+        (stock-last 'last)
+        (stock-avg 'avg)
+        (stock-recent-avg 'recent-avg)
+        (stock-volatility 'volatility)
+        (stock-value 'value)))
 
 (define (display-stock stock)
   (let ((padding 18))
@@ -69,11 +97,10 @@
     (fox "recent average: " padding #t)
     (fox (->pct-string (stock-recent-avg stock)) #t "\n")
     (fox "volatility: " padding #t)
-    (print (stock-volatility stock))))
+    (print (stock-volatility stock))
+    (fox "value: " padding #t)
+    (print (stock-value stock))))
 
 (define (make-test-stock)
   (make-stock name: "test" price: 1000.432432 projected: 0.05123 last: -0.012
-              avg: 0.022 recent-avg: 0.034 volatility: 'medium))
-(display-stock (make-test-stock))
-
-(fox (->pct 0.142212312) '(01))
+              avg: 0.022 recent-avg: 0.034 volatility: 0.1 value: 100))
