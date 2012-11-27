@@ -5,7 +5,7 @@
 
 (define (make-test-stock)
   (make-stock name: "test" price: 1000.432432 projected: 0.05123 last: -0.012
-              avg: 0.022 recent-avg: 0.034 volatility: 0.1 value: 100))
+              avg: '((samples . 2) (value . 2.0)) recent-avg: 0.034 volatility: 0.1 value: 20))
 
 (test-begin)
 (test-group
@@ -28,9 +28,19 @@
  (test 4 (combine-percents '((2 2)))))
 
 (test-group
+ "cumulative avg"
+ (test 20 (cumulative-avg 2 30 15))
+ (test 10 (cumulative-avg 0 10 0))
+ (test 2 (stock-avg-samples (make-test-stock)))
+ (test 2.0 (stock-avg-value (make-test-stock)))
+ (test 4 (stock-avg-samples (stock-avg-samples (make-test-stock) 4)))
+ (test 4 (stock-avg-value (stock-avg-value (make-test-stock) 4)))
+ (test "183.33%" (->pct-string (stock-cumulative-avg (make-test-stock) 30))))
+
+(test-group
  "stock values"
- (test 102.56 (projected-value (make-test-stock)))
- (test 102.34 (generate-value (make-test-stock) 0 0)))
+ (test 34.204 (projected-value (make-test-stock)))
+ (test 32.204 (generate-value (make-test-stock) 0 0)))
 
 (test-group
  "utilities"
