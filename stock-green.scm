@@ -86,6 +86,9 @@
         (stock-volatility 'volatility)
         (stock-value 'value)))
 
+(define (stock-price stock)
+  (alist-ref 'value stock))
+
 (define (stock-avg-samples stock . val)
   (if (store? val)
       (stock-avg stock (stock-samples (stock-avg stock) (car val)))
@@ -121,8 +124,12 @@
     (print (stock-value stock))))
 
 (define (make-test-stock)
-  (make-stock name: "test" price: 10 projected: 0 last: 0
+  (make-stock name: "Google" price: 10 projected: 0 last: 0
               avg: '((samples . 0) (value . 0)) recent-avg: 0 volatility: 0.1 value: 30))
+
+(define (make-test-stock-apple)
+  (make-stock name: "Apple" price: 20 projected: 0 last: 0
+              avg: '((samples . 0) (value . 0)) recent-avg: 0 volatility: 0.05 value: 40))
 
 ;;;;;;;;;;;;;; players ;;;;;;;;;;;;;;;;;
 (define (make-player #!key (name "") (cash 0) (stocks '()))
@@ -136,31 +143,51 @@
 (define (player-stock-shares player stock-name . val)
   (alist-ref stock-name (player-stocks player) string=?))
 
+(define (player-has-stock-in? player name)
+  (not (null? (filter (lambda (stock)
+                        (string=? (car stock) name))
+                      (player-stocks player)))))
+
+(define (player-stock-value player stock)
+  (* (player-stock-shares player (stock-name stock))
+     (stock-price stock)))
+
+(define (player-net-worth player stocks)
+  (+ (fold (lambda (stock worth)
+          (+ (player-stock-value player stock) worth))
+        0
+        stocks)
+     (player-cash player)))
+
 (define (make-test-player)
   (make-player name: "food good" cash: 10000
-               stocks: '(("Google" . 100))))
+               stocks: '(("Google" . 100) ("Apple" . 200))))
 
-(define (display-player-stock player stock-name stocks)
+(define (display-player-stock player stock)
   (let ((padding 26))
-    (fox stock-name (- padding 1) #t "\n")
+    (fox (stock-name stock) (- padding 1) #t "\n")
     (fox "value: " padding #t)
-    (fox (->$ (* (player-stock-shares player stock-name) (stock-price (alist-ref stock-name stocks string=?)))) 0 #t '(2) "\n")
+    (fox (->$ (player-stock-value player stock)) 0 #t '(2) "\n")
     (fox "shares: " padding #t)
-    (fox (player-stock-shares player stock-name) 0 #t "\n")))
+    (fox (player-stock-shares player (stock-name stock)) 0 #t "\n")))
 
 (define (display-player-stocks player stocks)
-  (display-player-stock player "Google" stocks))
+  (map (lambda (stock)
+                (display-player-stock player stock))
+       (filter (lambda (stock) (player-has-stock-in? player (stock-name stock))) stocks)))
 
 (define (display-player player stocks)
   (let ((padding 18))
     (print "")
     (fox (player-name player) (+ padding (string-length (player-name player))) #t "\n")
+    (fox "net worth: " padding #t)
+    (fox (->$ (player-net-worth player stocks)) 0 #t '(2) "\n")
     (fox "cash: " padding #t)
     (fox (->$ (player-cash player)) 0 #t '(2) "\n")
-    (fox "stocks: " padding #t)
+    (fox "stocks:" (- padding 1) #t)
     (print "")
     (display-player-stocks player stocks)))
-(display-player (make-test-player) `(("Google" . ,(make-test-stock))))
+(display-player (make-test-player) `(,(make-test-stock) ,(make-test-stock-apple)))
 
 ;;;;;;;;;;;;; game play ;;;;;;;;;;;;;;;;
 (define (generate-stock-new-value stock)
@@ -182,9 +209,7 @@
   (display-stock stock))
 
 (define google (make-test-stock))
-(set! google (stock-name google "Google"))
 (set! google (update-stock google 30))
 (begin (set! google (update-stock google (generate-stock-new-value google)))
-       (display-stock google))
-
-
+       (display-stock google)
+       (display-player (make-test-player) `(,google)))
